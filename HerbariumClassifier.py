@@ -20,7 +20,7 @@ logging.basicConfig(
 class Classifier:
     def __init__(self, model: torch.nn.Module, artifact_path, n_epochs: int,
                  optimizer,
-                 criterion, save_path, scheduler=None,
+                 criterion, scheduler=None,
                  scheduler_step_after_batch=False,
                  early_stopping=30):
         self.n_epochs = n_epochs
@@ -31,7 +31,6 @@ class Classifier:
         self.scheduler_step_after_batch = scheduler_step_after_batch
         self.criterion = criterion
         self.use_cuda = torch.cuda.is_available()
-        self.save_path = save_path
         self.early_stopping = early_stopping
         self.logger = logging.getLogger(__name__)
 
