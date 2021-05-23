@@ -154,7 +154,7 @@ def main():
     train_data = HerbariumDataset(annotations_file='data/annotations.csv',
                                   image_metadata_file='data/images.csv',
                                   img_dir='data', transform=transform)
-    train_data_loader = TrainDataLoader(data=train_data, valid_frac=0.5)
+    train_data_loader = TrainDataLoader(data=train_data, valid_frac=0.4)
     train_loader, valid_loader = train_data_loader.data_loaders
 
     model = torchvision.models.resnet50(pretrained=True)
