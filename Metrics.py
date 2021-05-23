@@ -41,7 +41,7 @@ class Metrics:
         return self._f1
 
     def update_outputs(self, y_true, y_out=None):
-        y_pred = torch.max(y_out, dim=1).detach().cpu().numpy().tolist()
+        y_pred = torch.argmax(y_out, dim=1).cpu().numpy().tolist()
         y_true = y_true.detach().cpu().numpy().tolist()
 
         self.y_preds += y_pred

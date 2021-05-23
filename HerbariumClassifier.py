@@ -47,8 +47,8 @@ class Classifier:
         time_since_best_epoch = 0
 
         for epoch in range(self.n_epochs):
-            n_train = len(train_loader.dataset)
-            n_val = len(train_loader.dataset)
+            n_train = len(train_loader.sampler)
+            n_val = len(valid_loader.sampler)
 
             epoch_train_metrics = Metrics(N=n_train)
             epoch_val_metrics = Metrics(N=n_val)
@@ -74,43 +74,42 @@ class Classifier:
             all_train_metrics.update(epoch=epoch,
                                      loss=epoch_train_metrics.loss)
 
-            if valid_loader:
-                self.model.eval()
-                for batch_idx, sample in enumerate(valid_loader):
-                    data = sample['data']
-                    target = sample['label']
+            self.model.eval()
+            for batch_idx, sample in enumerate(valid_loader):
+                data = sample['image']
+                target = sample['label']
 
-                    # move to GPU
-                    if self.use_cuda:
-                        data, target = data.cuda(), target.cuda()
+                # move to GPU
+                if self.use_cuda:
+                    data, target = data.cuda(), target.cuda()
 
-                    # update the average validation loss
-                    with torch.no_grad():
-                        output = self.model(data)
-                        loss = self.criterion(output, target)
+                # update the average validation loss
+                with torch.no_grad():
+                    output = self.model(data)
+                    loss = self.criterion(output, target)
 
-                        epoch_val_metrics.update_loss(loss=loss.item(),
-                                                      batch_size=data.shape[0])
-                        epoch_val_metrics.update_outputs(y_true=target,
-                                                         y_out=output)
+                    epoch_val_metrics.update_loss(loss=loss.item(),
+                                                  batch_size=data.shape[0])
+                    epoch_val_metrics.update_outputs(y_true=target,
+                                                     y_out=output)
 
-                all_val_metrics.update(epoch=epoch,
-                                       loss=epoch_val_metrics.loss,
-                                       macro_f1=epoch_val_metrics.macro_f1)
+            all_val_metrics.update(epoch=epoch,
+                                   loss=epoch_val_metrics.loss,
+                                   macro_f1=epoch_val_metrics.macro_f1)
 
-                if epoch_val_metrics.loss < best_epoch_val_loss:
-                    if save_model:
-                        torch.save(self.model.state_dict(),
-                                   f'{self.save_path}/model.pt')
-                    all_train_metrics.best_epoch = epoch
-                    all_val_metrics.best_epoch = epoch
-                    best_epoch_val_loss = epoch_val_metrics.loss
-                    time_since_best_epoch = 0
-                else:
-                    time_since_best_epoch += 1
-                    if time_since_best_epoch > self.early_stopping:
-                        self.logger.info('Stopping due to early stopping')
-                        return all_train_metrics, all_val_metrics
+            if epoch_val_metrics.loss < best_epoch_val_loss:
+                if save_model:
+                    torch.save(self.model.state_dict(),
+                               f'{self.save_path}/model.pt')
+                all_train_metrics.best_epoch = epoch
+                all_val_metrics.best_epoch = epoch
+                best_epoch_val_loss = epoch_val_metrics.loss
+                time_since_best_epoch = 0
+            else:
+                time_since_best_epoch += 1
+                if time_since_best_epoch > self.early_stopping:
+                    self.logger.info('Stopping due to early stopping')
+                    return all_train_metrics, all_val_metrics
 
             if not self.scheduler_step_after_batch:
                 if self.scheduler is not None:
@@ -124,7 +123,7 @@ class Classifier:
                 self.logger.info(f'Epoch: {epoch + 1} \t'
                                  f'Train loss: '
                                  f'{epoch_train_metrics.loss:.6f} \t'
-                                 f'Val Loss: {epoch_val_metrics.loss}'
+                                 f'Val Loss: {epoch_val_metrics.loss:.6f}\t'
                                  f'Val F1: {epoch_val_metrics.macro_f1:.6f}\t')
 
         return all_train_metrics, all_val_metrics
@@ -146,7 +145,7 @@ def main():
     train_data = HerbariumDataset(annotations_file='data/annotations.csv',
                                   image_metadata_file='data/images.csv',
                                   img_dir='data', transform=transform)
-    train_data_loader = TrainDataLoader(data=train_data)
+    train_data_loader = TrainDataLoader(data=train_data, valid_frac=0.5)
     train_loader, valid_loader = train_data_loader.data_loaders
 
     model = torchvision.models.resnet50(pretrained=True)
@@ -160,7 +159,7 @@ def main():
 
     classifier = Classifier(model=model, optimizer=optimizer,
                             criterion=criterion, save_path='checkpoints',
-                            n_epochs=100)
+                            n_epochs=100, early_stopping=3)
     classifier.train(train_loader=train_loader, valid_loader=valid_loader)
 
 
