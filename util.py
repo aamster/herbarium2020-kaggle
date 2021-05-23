@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -12,5 +15,6 @@ def split_image_metadata(path: str, valid_frac):
     train = image_metadata.iloc[train_idx]
     valid = image_metadata.iloc[valid_idx]
 
-    train.to_csv('data/train_images.csv', index=False)
-    valid.to_csv('data/valid_images.csv', index=False)
+    path = Path(os.path.abspath(os.path.dirname(__file__)))
+    train.to_csv(path / 'data' / 'train_images.csv', index=False)
+    valid.to_csv(path / 'data' / 'valid_images.csv', index=False)

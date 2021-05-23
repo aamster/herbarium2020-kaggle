@@ -168,7 +168,7 @@ def main():
     train_data = HerbariumDataset(
         annotations_file='data/annotations.csv',
                                   image_metadata_file='data/train_images.csv',
-                                  img_dir='data')
+                                  img_dir='data', transform=train_transform)
     valid_data = HerbariumDataset(
         annotations_file='data/annotations.csv',
                                   image_metadata_file='data/valid_images.csv',
