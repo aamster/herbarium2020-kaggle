@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 
+import mlflow
 import torch
 from torch.utils.data import DataLoader
 
@@ -46,85 +47,93 @@ class Classifier:
         best_epoch_val_loss = float('inf')
         time_since_best_epoch = 0
 
-        for epoch in range(self.n_epochs):
-            n_train = len(train_loader.sampler)
-            n_val = len(valid_loader.sampler)
+        with mlflow.start_run():
+            for epoch in range(self.n_epochs):
+                n_train = len(train_loader.sampler)
+                n_val = len(valid_loader.sampler)
 
-            epoch_train_metrics = Metrics(N=n_train)
-            epoch_val_metrics = Metrics(N=n_val)
+                epoch_train_metrics = Metrics(N=n_train)
+                epoch_val_metrics = Metrics(N=n_val)
 
-            self.model.train()
-            for batch_idx, sample in enumerate(train_loader):
-                data = sample['image']
-                target = sample['label']
+                self.model.train()
+                for batch_idx, sample in enumerate(train_loader):
+                    data = sample['image']
+                    target = sample['label']
 
-                # move to GPU
-                if self.use_cuda:
-                    data, target = data.cuda(), target.cuda()
+                    # move to GPU
+                    if self.use_cuda:
+                        data, target = data.cuda(), target.cuda()
 
-                self.optimizer.zero_grad()
-                output = self.model(data)
-                loss = self.criterion(output, target)
-                loss.backward()
-                self.optimizer.step()
-
-                epoch_train_metrics.update_loss(loss=loss.item(),
-                                                batch_size=data.shape[0])
-
-            all_train_metrics.update(epoch=epoch,
-                                     loss=epoch_train_metrics.loss)
-
-            self.model.eval()
-            for batch_idx, sample in enumerate(valid_loader):
-                data = sample['image']
-                target = sample['label']
-
-                # move to GPU
-                if self.use_cuda:
-                    data, target = data.cuda(), target.cuda()
-
-                # update the average validation loss
-                with torch.no_grad():
+                    self.optimizer.zero_grad()
                     output = self.model(data)
                     loss = self.criterion(output, target)
+                    loss.backward()
+                    self.optimizer.step()
 
-                    epoch_val_metrics.update_loss(loss=loss.item(),
-                                                  batch_size=data.shape[0])
-                    epoch_val_metrics.update_outputs(y_true=target,
-                                                     y_out=output)
+                    epoch_train_metrics.update_loss(loss=loss.item(),
+                                                    batch_size=data.shape[0])
 
-            all_val_metrics.update(epoch=epoch,
-                                   loss=epoch_val_metrics.loss,
-                                   macro_f1=epoch_val_metrics.macro_f1)
+                all_train_metrics.update(epoch=epoch,
+                                         loss=epoch_train_metrics.loss)
 
-            if epoch_val_metrics.loss < best_epoch_val_loss:
-                if save_model:
-                    torch.save(self.model.state_dict(),
-                               f'{self.save_path}/model.pt')
-                all_train_metrics.best_epoch = epoch
-                all_val_metrics.best_epoch = epoch
-                best_epoch_val_loss = epoch_val_metrics.loss
-                time_since_best_epoch = 0
-            else:
-                time_since_best_epoch += 1
-                if time_since_best_epoch > self.early_stopping:
-                    self.logger.info('Stopping due to early stopping')
-                    return all_train_metrics, all_val_metrics
+                self.model.eval()
+                for batch_idx, sample in enumerate(valid_loader):
+                    data = sample['image']
+                    target = sample['label']
 
-            if not self.scheduler_step_after_batch:
-                if self.scheduler is not None:
-                    if isinstance(self.scheduler,
-                                  torch.optim.lr_scheduler.ReduceLROnPlateau):
-                        self.scheduler.step(epoch_val_metrics.macro_f1)
-                    else:
-                        self.scheduler.step()
+                    # move to GPU
+                    if self.use_cuda:
+                        data, target = data.cuda(), target.cuda()
 
-            if log_after_each_epoch:
-                self.logger.info(f'Epoch: {epoch + 1} \t'
-                                 f'Train loss: '
-                                 f'{epoch_train_metrics.loss:.6f} \t'
-                                 f'Val Loss: {epoch_val_metrics.loss:.6f}\t'
-                                 f'Val F1: {epoch_val_metrics.macro_f1:.6f}\t')
+                    # update the average validation loss
+                    with torch.no_grad():
+                        output = self.model(data)
+                        loss = self.criterion(output, target)
+
+                        epoch_val_metrics.update_loss(loss=loss.item(),
+                                                      batch_size=data.shape[0])
+                        epoch_val_metrics.update_outputs(y_true=target,
+                                                         y_out=output)
+
+                all_val_metrics.update(epoch=epoch,
+                                       loss=epoch_val_metrics.loss,
+                                       macro_f1=epoch_val_metrics.macro_f1)
+
+                if epoch_val_metrics.loss < best_epoch_val_loss:
+                    if save_model:
+                        torch.save(self.model.state_dict(),
+                                   f'{self.save_path}/model.pt')
+                    all_train_metrics.best_epoch = epoch
+                    all_val_metrics.best_epoch = epoch
+                    best_epoch_val_loss = epoch_val_metrics.loss
+                    time_since_best_epoch = 0
+                else:
+                    time_since_best_epoch += 1
+                    if time_since_best_epoch > self.early_stopping:
+                        self.logger.info('Stopping due to early stopping')
+                        return all_train_metrics, all_val_metrics
+
+                if not self.scheduler_step_after_batch:
+                    if self.scheduler is not None:
+                        if isinstance(self.scheduler,
+                                      torch.optim.lr_scheduler.ReduceLROnPlateau):
+                            self.scheduler.step(epoch_val_metrics.macro_f1)
+                        else:
+                            self.scheduler.step()
+
+                if log_after_each_epoch:
+                    self.logger.info(f'Epoch: {epoch + 1} \t'
+                                     f'Train loss: '
+                                     f'{epoch_train_metrics.loss:.6f} \t'
+                                     f'Val Loss: {epoch_val_metrics.loss:.6f}\t'
+                                     f'Val F1: {epoch_val_metrics.macro_f1:.6f}\t')
+
+                metrics = {
+                    'train loss': epoch_train_metrics.loss,
+                    'val loss': epoch_val_metrics.loss,
+                    'val F1': epoch_val_metrics.macro_f1
+                }
+                mlflow.log_metrics(metrics=metrics, step=epoch)
 
         return all_train_metrics, all_val_metrics
 
