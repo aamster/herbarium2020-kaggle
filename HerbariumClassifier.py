@@ -11,18 +11,20 @@ from Metrics import Metrics, TrainingMetrics
 
 logging.basicConfig(
     stream=sys.stdout,
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(levelname)s:\t%(asctime)s\t%(message)s',
     datefmt='%m/%d/%Y %I:%M:%S %p'
 )
 
 
 class Classifier:
-    def __init__(self, model: torch.nn.Module, n_epochs: int, optimizer,
+    def __init__(self, model: torch.nn.Module, artifact_path, n_epochs: int,
+                 optimizer,
                  criterion, save_path, scheduler=None,
                  scheduler_step_after_batch=False,
                  early_stopping=30):
         self.n_epochs = n_epochs
+        self._artifact_path = artifact_path
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -50,8 +52,8 @@ class Classifier:
 
         with mlflow.start_run():
             for epoch in range(self.n_epochs):
-                n_train = len(train_loader.sampler)
-                n_val = len(valid_loader.sampler)
+                n_train = len(train_loader.dataset)
+                n_val = len(valid_loader.dataset)
 
                 epoch_train_metrics = Metrics(N=n_train)
                 epoch_val_metrics = Metrics(N=n_val)
@@ -103,9 +105,9 @@ class Classifier:
                                        macro_f1=epoch_val_metrics.macro_f1)
 
                 if epoch_val_metrics.loss < best_epoch_val_loss:
-                    if save_model:
-                        torch.save(self.model.state_dict(),
-                                   f'{self.save_path}/model.pt')
+                    mlflow.pytorch.log_model(self.model,
+                                             artifact_path=self._artifact_path)
+
                     all_train_metrics.best_epoch = epoch
                     all_val_metrics.best_epoch = epoch
                     best_epoch_val_loss = epoch_val_metrics.loss
