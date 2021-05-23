@@ -8,15 +8,13 @@ from PIL import Image
 
 class HerbariumDataset(Dataset):
     def __init__(self, annotations_file, image_metadata_file, img_dir,
-                 transform=None, target_transform=None):
-        self.annotations = self._get_annotations(
-            annotations_file=annotations_file)
+                 transform=None):
+        self.annotations = self.__get_annotations(annotations_file=annotations_file)
         self.image_metadata = pd.read_csv(image_metadata_file).set_index('id')
         self.img_dir = Path(img_dir)
         self.transform = transform
-        self.target_transform = target_transform
 
-    def _get_annotations(self, annotations_file):
+    def __get_annotations(self, annotations_file):
         annotations = pd.read_csv(annotations_file).set_index('image_id')
         cur_ids = np.sort(annotations['category_id'].unique())
         new_ids = range(annotations.shape[0])
@@ -25,7 +23,7 @@ class HerbariumDataset(Dataset):
         return annotations
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.image_metadata)
 
     def __getitem__(self, idx):
         image_id = self.image_metadata.iloc[idx].name
@@ -35,8 +33,6 @@ class HerbariumDataset(Dataset):
         label = self.annotations.loc[image_id, 'category_id']
         if self.transform:
             image = self.transform(image)
-        if self.target_transform:
-            label = self.target_transform(label)
         sample = {"image": image, "label": label}
         return sample
 

@@ -147,18 +147,41 @@ def main():
     import torchvision.transforms as transforms
     from HerbariumDataset import HerbariumDataset
     from DataLoader import TrainDataLoader
+    import numpy as np
+    from util import split_image_metadata
 
-    transform = transforms.Compose([
+    train_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.CenterCrop(448),
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+    ])
+    valid_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.CenterCrop(448),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 
-    train_data = HerbariumDataset(annotations_file='data/annotations.csv',
-                                  image_metadata_file='data/images.csv',
-                                  img_dir='data', transform=transform)
-    train_data_loader = TrainDataLoader(data=train_data, valid_frac=0.4)
-    train_loader, valid_loader = train_data_loader.data_loaders
+    np.random.seed(1234)
+
+    split_image_metadata(path='data/images.csv', valid_frac=0.4)
+
+    train_data = HerbariumDataset(
+        annotations_file='data/annotations.csv',
+                                  image_metadata_file='data/train_images.csv',
+                                  img_dir='data')
+    valid_data = HerbariumDataset(
+        annotations_file='data/annotations.csv',
+                                  image_metadata_file='data/valid_images.csv',
+                                  img_dir='data', transform=valid_transform)
+
+    train_loader = torch.utils.data.DataLoader(train_data,
+                                               batch_size=64,
+                                               shuffle=True,
+                                               num_workers=0)
+    valid_loader = torch.utils.data.DataLoader(valid_data,
+                                               batch_size=64,
+                                               shuffle=True,
+                                               num_workers=0)
 
     model = torchvision.models.resnet50(pretrained=True)
     num_ftrs = model.fc.in_features
