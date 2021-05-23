@@ -4,6 +4,7 @@ import sys
 
 import mlflow
 import torch
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from Metrics import Metrics, TrainingMetrics
@@ -56,7 +57,8 @@ class Classifier:
                 epoch_val_metrics = Metrics(N=n_val)
 
                 self.model.train()
-                for batch_idx, sample in enumerate(train_loader):
+                for batch_idx, sample in enumerate(tqdm(train_loader,
+                                                        total=len(train_loader))):
                     data = sample['image']
                     target = sample['label']
 
@@ -77,7 +79,8 @@ class Classifier:
                                          loss=epoch_train_metrics.loss)
 
                 self.model.eval()
-                for batch_idx, sample in enumerate(valid_loader):
+                for batch_idx, sample in enumerate(tqdm(valid_loader,
+                                                        total=len(valid_loader))):
                     data = sample['image']
                     target = sample['label']
 
