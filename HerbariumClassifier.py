@@ -35,8 +35,8 @@ class Classifier:
         self.early_stopping = early_stopping
         self.logger = logging.getLogger(__name__)
 
-        if not os.path.exists(f'{self.save_path}'):
-            os.makedirs(f'{self.save_path}')
+        if not os.path.exists(f'{self._artifact_path}'):
+            os.makedirs(f'{self._artifact_path}')
 
         if self.use_cuda:
             self.model.cuda()
@@ -195,7 +195,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
 
     classifier = Classifier(model=model, optimizer=optimizer,
-                            criterion=criterion, save_path='checkpoints',
+                            criterion=criterion, artifact_path='checkpoints',
                             n_epochs=100, early_stopping=3)
     classifier.train(train_loader=train_loader, valid_loader=valid_loader)
 
