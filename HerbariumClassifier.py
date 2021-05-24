@@ -58,6 +58,9 @@ class Classifier:
                 epoch_val_metrics = Metrics(N=n_val)
 
                 self.model.train()
+
+                mlflow.log_text(f'Train Epoch {epoch}', 'train_log.txt')
+
                 for batch_idx, sample in enumerate(tqdm(train_loader,
                                                         total=len(train_loader))):
                     data = sample['image']
@@ -75,9 +78,13 @@ class Classifier:
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
+                    mlflow.log_text(f'Train Batch {batch_idx}/'
+                                    f'{len(train_loader)}', 'train_log.txt')
 
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
+
+                mlflow.log_text(f'Val Epoch {epoch}', 'train_log.txt')
 
                 self.model.eval()
                 for batch_idx, sample in enumerate(tqdm(valid_loader,
@@ -98,6 +105,8 @@ class Classifier:
                                                       batch_size=data.shape[0])
                         epoch_val_metrics.update_outputs(y_true=target,
                                                          y_out=output)
+                    mlflow.log_text(f'Val Batch {batch_idx}/'
+                                    f'{len(valid_loader)}', 'train_log.txt')
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
@@ -115,6 +124,8 @@ class Classifier:
                     time_since_best_epoch += 1
                     if time_since_best_epoch > self.early_stopping:
                         self.logger.info('Stopping due to early stopping')
+                        mlflow.log_text(f'Stopping due to early stopping',
+                                        'train_log.txt')
                         return all_train_metrics, all_val_metrics
 
                 if not self.scheduler_step_after_batch:
