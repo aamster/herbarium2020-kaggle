@@ -49,7 +49,8 @@ class Classifier:
         best_epoch_val_loss = float('inf')
         time_since_best_epoch = 0
 
-        with mlflow.start_run():
+        exeriment_id = mlflow.get_experiment_by_name('test')
+        with mlflow.start_run(experiment_id=exeriment_id):
             for epoch in range(self.n_epochs):
                 n_train = len(train_loader.dataset)
                 n_val = len(valid_loader.dataset)
