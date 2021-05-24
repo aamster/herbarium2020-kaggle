@@ -49,8 +49,8 @@ class Classifier:
         best_epoch_val_loss = float('inf')
         time_since_best_epoch = 0
 
-        exeriment_id = mlflow.get_experiment_by_name('test')
-        with mlflow.start_run(experiment_id=exeriment_id):
+        exeriment = mlflow.get_experiment_by_name('test')
+        with mlflow.start_run(experiment_id=exeriment.experiment_id):
             for epoch in range(self.n_epochs):
                 n_train = len(train_loader.dataset)
                 n_val = len(valid_loader.dataset)
@@ -162,6 +162,8 @@ def main():
     from DataLoader import TrainDataLoader
     import numpy as np
     from util import split_image_metadata
+
+    mlflow.set_tracking_uri('http://mlflo-mlflo-16mqjx084gpy-1597208273.us-west-2.elb.amazonaws.com')
 
     train_transform = transforms.Compose([
         transforms.ToTensor(),
