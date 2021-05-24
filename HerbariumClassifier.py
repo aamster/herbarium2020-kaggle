@@ -11,7 +11,7 @@ from Metrics import Metrics, TrainingMetrics
 
 logging.basicConfig(
     stream=sys.stdout,
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(levelname)s:\t%(asctime)s\t%(message)s',
     datefmt='%m/%d/%Y %I:%M:%S %p'
 )
@@ -79,13 +79,12 @@ class Classifier:
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
-                    mlflow.log_text(f'Train Batch {batch_idx}/'
-                                    f'{len(train_loader)}', 'train_log.txt')
+                    mlflow.log_metric(key='minibatch_train_loss',
+                                      value=epoch_train_metrics.loss,
+                                      step=batch_idx)
 
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
-
-                mlflow.log_text(f'Val Epoch {epoch}', 'train_log.txt')
 
                 self.model.eval()
                 for batch_idx, sample in enumerate(tqdm(valid_loader,
@@ -106,8 +105,9 @@ class Classifier:
                                                       batch_size=data.shape[0])
                         epoch_val_metrics.update_outputs(y_true=target,
                                                          y_out=output)
-                    mlflow.log_text(f'Val Batch {batch_idx}/'
-                                    f'{len(valid_loader)}', 'train_log.txt')
+                    mlflow.log_metric(key='minibatch_val_loss',
+                                      value=epoch_val_metrics.loss,
+                                      step=batch_idx)
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
