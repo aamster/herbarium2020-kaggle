@@ -38,6 +38,7 @@ class Classifier:
         self._exeriment = mlflow.get_experiment_by_name(experiment_name)
         self._best_epoch_val_loss = float('inf')
         self._run_id = None
+        self._cur_epoch = 0
 
         if not load_model_from_checkpoint and model is None:
             raise ValueError('Must either load model from checkpoint or '
@@ -65,7 +66,7 @@ class Classifier:
 
         with mlflow.start_run(experiment_id=self._exeriment.experiment_id,
                                    run_id=self._run_id):
-            for epoch in range(self.n_epochs):
+            for epoch in range(self._cur_epoch, self.n_epochs):
                 n_train = len(train_loader.dataset)
                 n_val = len(valid_loader.dataset)
 
@@ -132,6 +133,7 @@ class Classifier:
                 if epoch_val_metrics.loss < best_epoch_val_loss:
                     mlflow.pytorch.log_model(self._model,
                                                   artifact_path=self._artifact_path)
+                    mlflow.set_tags(tags={'best_epoch': epoch})
 
                     all_train_metrics.best_epoch = epoch
                     all_val_metrics.best_epoch = epoch
@@ -172,7 +174,8 @@ class Classifier:
         return all_train_metrics, all_val_metrics
 
     def _load_model_from_checkpoint(self):
-        model, run_id, val_loss = mlflow_util.load_model_from_checkpoint(
+        model, run_id, val_loss, epoch = \
+            mlflow_util.load_model_from_checkpoint(
             experiment_id=self._exeriment.experiment_id,
             use_cuda=self.use_cuda
         )
@@ -180,6 +183,7 @@ class Classifier:
         self._model = model
         self._run_id = run_id
         self._best_epoch_val_loss = val_loss
+        self._cur_epoch = epoch + 1
 
     @staticmethod
     def _log_text(text):
