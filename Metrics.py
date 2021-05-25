@@ -19,7 +19,6 @@ class Metrics:
         """
 
         :param N: total number of data points
-        preds, true
         """
         self._N = N
         self._loss = 0.0

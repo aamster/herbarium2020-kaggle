@@ -18,14 +18,17 @@ logging.basicConfig(
 
 
 class Classifier:
-    def __init__(self, model: torch.nn.Module, artifact_path, n_epochs: int,
+    def __init__(self, artifact_path, n_epochs: int,
                  optimizer,
-                 criterion, scheduler=None,
+                 criterion,
+                 model: torch.nn.Module = None,
+                 load_model_from_checkpoint=False,
+                 scheduler=None,
                  scheduler_step_after_batch=False,
-                 early_stopping=30):
+                 early_stopping=30, experiment_name='test'):
         self.n_epochs = n_epochs
         self._artifact_path = artifact_path
-        self.model = model
+        self._model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.scheduler_step_after_batch = scheduler_step_after_batch
@@ -33,24 +36,33 @@ class Classifier:
         self.use_cuda = torch.cuda.is_available()
         self.early_stopping = early_stopping
         self.logger = logging.getLogger(__name__)
+        self._exeriment = mlflow.get_experiment_by_name(experiment_name)
+        self._best_epoch_val_loss = float('inf')
+        self._run_id = None
+
+        if not load_model_from_checkpoint and model is None:
+            raise ValueError('Must either load model from checkpoint or '
+                             'supply model')
+
+        if load_model_from_checkpoint:
+            self._load_model_from_checkpoint()
 
         if not os.path.exists(f'{self._artifact_path}'):
             os.makedirs(f'{self._artifact_path}')
 
         if self.use_cuda:
-            self.model.cuda()
+            self._model.cuda()
 
     def train(self, train_loader: DataLoader,
               valid_loader: DataLoader,
-              log_after_each_epoch=True, save_model=False):
+              log_after_each_epoch=True):
         all_train_metrics = TrainingMetrics(n_epochs=self.n_epochs)
         all_val_metrics = TrainingMetrics(n_epochs=self.n_epochs)
 
-        best_epoch_val_loss = float('inf')
         time_since_best_epoch = 0
 
-        exeriment = mlflow.get_experiment_by_name('test')
-        with mlflow.start_run(experiment_id=exeriment.experiment_id):
+        with mlflow.start_run(experiment_id=self._exeriment.experiment_id,
+                              run_id=self._run_id):
             for epoch in range(self.n_epochs):
                 n_train = len(train_loader.dataset)
                 n_val = len(valid_loader.dataset)
@@ -58,9 +70,7 @@ class Classifier:
                 epoch_train_metrics = Metrics(N=n_train)
                 epoch_val_metrics = Metrics(N=n_val)
 
-                self.model.train()
-
-                mlflow.log_text(f'Train Epoch {epoch}', 'train_log.txt')
+                self._model.train()
 
                 for batch_idx, sample in enumerate(tqdm(train_loader,
                                                         total=len(train_loader))):
@@ -72,21 +82,23 @@ class Classifier:
                         data, target = data.cuda(), target.cuda()
 
                     self.optimizer.zero_grad()
-                    output = self.model(data)
+                    output = self._model(data)
                     loss = self.criterion(output, target)
                     loss.backward()
                     self.optimizer.step()
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
-                    mlflow.log_metric(key='minibatch_train_loss',
-                                      value=epoch_train_metrics.loss,
-                                      step=batch_idx)
+                    mlflow.log_text(f'''
+                    Epoch {epoch}
+                    Train
+                    Batch {batch_idx}/{len(train_loader)}
+                    ''', 'train_log.txt')
 
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
 
-                self.model.eval()
+                self._model.eval()
                 for batch_idx, sample in enumerate(tqdm(valid_loader,
                                                         total=len(valid_loader))):
                     data = sample['image']
@@ -98,23 +110,25 @@ class Classifier:
 
                     # update the average validation loss
                     with torch.no_grad():
-                        output = self.model(data)
+                        output = self._model(data)
                         loss = self.criterion(output, target)
 
                         epoch_val_metrics.update_loss(loss=loss.item(),
                                                       batch_size=data.shape[0])
                         epoch_val_metrics.update_outputs(y_true=target,
                                                          y_out=output)
-                    mlflow.log_metric(key='minibatch_val_loss',
-                                      value=epoch_val_metrics.loss,
-                                      step=batch_idx)
+                    mlflow.log_text(f'''
+                    Epoch {epoch}
+                    Val
+                    Batch {batch_idx}/{len(valid_loader)}
+                    ''', 'train_log.txt')
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
                                        macro_f1=epoch_val_metrics.macro_f1)
 
                 if epoch_val_metrics.loss < best_epoch_val_loss:
-                    mlflow.pytorch.log_model(self.model,
+                    mlflow.pytorch.log_model(self._model,
                                              artifact_path=self._artifact_path)
 
                     all_train_metrics.best_epoch = epoch
@@ -125,8 +139,10 @@ class Classifier:
                     time_since_best_epoch += 1
                     if time_since_best_epoch > self.early_stopping:
                         self.logger.info('Stopping due to early stopping')
-                        mlflow.log_text(f'Stopping due to early stopping',
-                                        'train_log.txt')
+                        mlflow.log_text(f'''
+                        Epoch {epoch}
+                        Stopping due to early stopping
+                        ''', 'train_log.txt')
                         return all_train_metrics, all_val_metrics
 
                 if not self.scheduler_step_after_batch:
@@ -152,6 +168,25 @@ class Classifier:
                 mlflow.log_metrics(metrics=metrics, step=epoch)
 
         return all_train_metrics, all_val_metrics
+
+    def _load_model_from_checkpoint(self):
+        run_infos = mlflow.list_run_infos(
+            experiment_id=self._exeriment.experiment_id, order_by=[
+                'metric.val_loss'])
+        best_run_info = run_infos[0]
+        best_run = mlflow.get_run(run_id=best_run_info.run_id)
+        run_id = best_run_info.run_id
+
+        model_uri = f'runs:/{run_id}/model'
+        if not self.use_cuda:
+            model = mlflow.pytorch.load_model(model_uri=model_uri,
+                                          map_location=torch.device('cpu'))
+        else:
+            model = mlflow.pytorch.load_model(model_uri=model_uri)
+
+        self._model = model
+        self._run_id = run_id
+        self._best_epoch_val_loss = best_run.data.metrics['val loss']
 
 
 def main():
@@ -209,7 +244,8 @@ def main():
 
     classifier = Classifier(model=model, optimizer=optimizer,
                             criterion=criterion, artifact_path='checkpoints',
-                            n_epochs=100, early_stopping=3)
+                            n_epochs=100, early_stopping=3,
+                            load_model_from_checkpoint=True)
     classifier.train(train_loader=train_loader, valid_loader=valid_loader)
 
 
