@@ -20,8 +20,6 @@ logging.basicConfig(
 
 class Classifier:
     def __init__(self, artifact_path, n_epochs: int,
-                 optimizer,
-                 criterion,
                  model: torch.nn.Module = None,
                  load_model_from_checkpoint=False,
                  scheduler=None,
@@ -31,10 +29,8 @@ class Classifier:
         self.n_epochs = n_epochs
         self._artifact_path = artifact_path
         self._model = model
-        self.optimizer = optimizer
         self.scheduler = scheduler
         self.scheduler_step_after_batch = scheduler_step_after_batch
-        self.criterion = criterion
         self.use_cuda = torch.cuda.is_available()
         self.early_stopping = early_stopping
         self.logger = logging.getLogger(__name__)
@@ -86,11 +82,11 @@ class Classifier:
                     if self.use_cuda:
                         data, target = data.cuda(), target.cuda()
 
-                    self.optimizer.zero_grad()
+                    self._optimizer.zero_grad()
                     output = self._model(data)
-                    loss = self.criterion(output, target)
+                    loss = self._criterion(output, target)
                     loss.backward()
-                    self.optimizer.step()
+                    self._optimizer.step()
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
@@ -116,7 +112,7 @@ class Classifier:
                     # update the average validation loss
                     with torch.no_grad():
                         output = self._model(data)
-                        loss = self.criterion(output, target)
+                        loss = self._criterion(output, target)
 
                         epoch_val_metrics.update_loss(loss=loss.item(),
                                                       batch_size=data.shape[0])
