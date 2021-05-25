@@ -26,7 +26,8 @@ class Classifier:
                  load_model_from_checkpoint=False,
                  scheduler=None,
                  scheduler_step_after_batch=False,
-                 early_stopping=30, experiment_name='test'):
+                 early_stopping=30, experiment_name='test',
+                 lr=1e-3):
         self.n_epochs = n_epochs
         self._artifact_path = artifact_path
         self._model = model
@@ -47,6 +48,9 @@ class Classifier:
 
         if load_model_from_checkpoint:
             self._load_model_from_checkpoint()
+
+        self._optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        self._criterion = torch.nn.CrossEntropyLoss()
 
         if not os.path.exists(f'{self._artifact_path}'):
             os.makedirs(f'{self._artifact_path}')
