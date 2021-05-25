@@ -130,14 +130,14 @@ class Classifier:
                                        loss=epoch_val_metrics.loss,
                                        macro_f1=epoch_val_metrics.macro_f1)
 
-                if epoch_val_metrics.loss < best_epoch_val_loss:
+                if epoch_val_metrics.loss < self._best_epoch_val_loss:
                     mlflow.pytorch.log_model(self._model,
                                                   artifact_path=self._artifact_path)
                     mlflow.set_tags(tags={'best_epoch': epoch})
 
                     all_train_metrics.best_epoch = epoch
                     all_val_metrics.best_epoch = epoch
-                    best_epoch_val_loss = epoch_val_metrics.loss
+                    self._best_epoch_val_loss = epoch_val_metrics.loss
                     time_since_best_epoch = 0
                 else:
                     time_since_best_epoch += 1
