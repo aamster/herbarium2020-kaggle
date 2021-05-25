@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 
+import mlflow_util
 import mlflow
 import torch
 from tqdm import tqdm
@@ -62,7 +63,7 @@ class Classifier:
         time_since_best_epoch = 0
 
         with mlflow.start_run(experiment_id=self._exeriment.experiment_id,
-                              run_id=self._run_id):
+                                   run_id=self._run_id):
             for epoch in range(self.n_epochs):
                 n_train = len(train_loader.dataset)
                 n_val = len(valid_loader.dataset)
@@ -129,7 +130,7 @@ class Classifier:
 
                 if epoch_val_metrics.loss < best_epoch_val_loss:
                     mlflow.pytorch.log_model(self._model,
-                                             artifact_path=self._artifact_path)
+                                                  artifact_path=self._artifact_path)
 
                     all_train_metrics.best_epoch = epoch
                     all_val_metrics.best_epoch = epoch
@@ -170,23 +171,14 @@ class Classifier:
         return all_train_metrics, all_val_metrics
 
     def _load_model_from_checkpoint(self):
-        run_infos = mlflow.list_run_infos(
-            experiment_id=self._exeriment.experiment_id, order_by=[
-                'metric.val_loss'])
-        best_run_info = run_infos[0]
-        best_run = mlflow.get_run(run_id=best_run_info.run_id)
-        run_id = best_run_info.run_id
-
-        model_uri = f'runs:/{run_id}/model'
-        if not self.use_cuda:
-            model = mlflow.pytorch.load_model(model_uri=model_uri,
-                                          map_location=torch.device('cpu'))
-        else:
-            model = mlflow.pytorch.load_model(model_uri=model_uri)
+        model, run_id, val_loss = mlflow_util.load_model_from_checkpoint(
+            experiment_id=self._exeriment.experiment_id,
+            use_cuda=self.use_cuda
+        )
 
         self._model = model
         self._run_id = run_id
-        self._best_epoch_val_loss = best_run.data.metrics['val loss']
+        self._best_epoch_val_loss = val_loss
 
 
 def main():
@@ -198,7 +190,7 @@ def main():
     import numpy as np
     from util import split_image_metadata
 
-    mlflow.set_tracking_uri('http://mlflo-mlflo-16mqjx084gpy-1597208273.us-west-2.elb.amazonaws.com')
+    mlflow_util.set_tracking_uri('http://mlflo-mlflo-16mqjx084gpy-1597208273.us-west-2.elb.amazonaws.com')
 
     train_transform = transforms.Compose([
         transforms.ToTensor(),
