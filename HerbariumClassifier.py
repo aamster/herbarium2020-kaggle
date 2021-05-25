@@ -45,7 +45,7 @@ class Classifier:
         if load_model_from_checkpoint:
             self._load_model_from_checkpoint()
 
-        self._optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
         self._criterion = torch.nn.CrossEntropyLoss()
 
         if not os.path.exists(f'{self._artifact_path}'):
