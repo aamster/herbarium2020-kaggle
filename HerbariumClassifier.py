@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 import sys
@@ -90,11 +91,11 @@ class Classifier:
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
-                    mlflow.log_text(f'''
+                    self._log_text(f'''
                     Epoch {epoch}
                     Train
                     Batch {batch_idx}/{len(train_loader)}
-                    ''', 'train_log.txt')
+                    ''')
 
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
@@ -118,11 +119,11 @@ class Classifier:
                                                       batch_size=data.shape[0])
                         epoch_val_metrics.update_outputs(y_true=target,
                                                          y_out=output)
-                    mlflow.log_text(f'''
+                    self._log_text(f'''
                     Epoch {epoch}
                     Val
                     Batch {batch_idx}/{len(valid_loader)}
-                    ''', 'train_log.txt')
+                    ''')
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
@@ -140,10 +141,10 @@ class Classifier:
                     time_since_best_epoch += 1
                     if time_since_best_epoch > self.early_stopping:
                         self.logger.info('Stopping due to early stopping')
-                        mlflow.log_text(f'''
+                        self._log_text(f'''
                         Epoch {epoch}
                         Stopping due to early stopping
-                        ''', 'train_log.txt')
+                        ''')
                         return all_train_metrics, all_val_metrics
 
                 if not self.scheduler_step_after_batch:
@@ -180,6 +181,11 @@ class Classifier:
         self._run_id = run_id
         self._best_epoch_val_loss = val_loss
 
+    @staticmethod
+    def _log_text(text):
+        now = datetime.datetime.now().strftime('%m-%d-%Y-%I-%M-%S')
+        mlflow.log_text(text, f'train_log/{now}.log')
+
 
 def main():
     import torchvision
@@ -190,7 +196,8 @@ def main():
     import numpy as np
     from util import split_image_metadata
 
-    mlflow_util.set_tracking_uri('http://mlflo-mlflo-16mqjx084gpy-1597208273.us-west-2.elb.amazonaws.com')
+    mlflow.set_tracking_uri(
+        'http://mlflo-mlflo-16mqjx084gpy-1597208273.us-west-2.elb.amazonaws.com')
 
     train_transform = transforms.Compose([
         transforms.ToTensor(),
@@ -234,8 +241,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.CrossEntropyLoss()
 
-    classifier = Classifier(model=model, optimizer=optimizer,
-                            criterion=criterion, artifact_path='checkpoints',
+    classifier = Classifier(artifact_path='checkpoints',
                             n_epochs=100, early_stopping=3,
                             load_model_from_checkpoint=True)
     classifier.train(train_loader=train_loader, valid_loader=valid_loader)
