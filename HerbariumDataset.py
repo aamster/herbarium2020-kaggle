@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
@@ -29,7 +30,8 @@ class HerbariumDataset(Dataset):
         image_id = self.image_metadata.iloc[idx].name
         filename = self.image_metadata.loc[image_id, 'file_name']
         img_path = self.img_dir / filename
-        image = Image.open(img_path)
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         label = self.annotations.loc[image_id, 'category_id']
         if self.transform:
             image = self.transform(image)

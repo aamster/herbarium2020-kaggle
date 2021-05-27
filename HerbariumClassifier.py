@@ -75,8 +75,9 @@ class Classifier:
 
                 self._model.train()
 
-                for batch_idx, sample in enumerate(tqdm(train_loader,
-                                                        total=len(train_loader))):
+                pb = tqdm(enumerate(train_loader), total=len(train_loader),
+                          desc=f'Epoch {epoch} Train')
+                for batch_idx, sample in pb:
                     data = sample['image']
                     target = sample['label']
 
@@ -92,18 +93,14 @@ class Classifier:
 
                     epoch_train_metrics.update_loss(loss=loss.item(),
                                                     batch_size=data.shape[0])
-                    self._log_text(f'''
-                    Epoch {epoch}
-                    Train
-                    Batch {batch_idx}/{len(train_loader)}
-                    ''')
-
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
 
+                pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
+                          desc=f'Epoch {epoch} Val')
+
                 self._model.eval()
-                for batch_idx, sample in enumerate(tqdm(valid_loader,
-                                                        total=len(valid_loader))):
+                for batch_idx, sample in pb:
                     data = sample['image']
                     target = sample['label']
 
@@ -120,11 +117,6 @@ class Classifier:
                                                       batch_size=data.shape[0])
                         epoch_val_metrics.update_outputs(y_true=target,
                                                          y_out=output)
-                    self._log_text(f'''
-                    Epoch {epoch}
-                    Val
-                    Batch {batch_idx}/{len(valid_loader)}
-                    ''')
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
@@ -143,10 +135,6 @@ class Classifier:
                     time_since_best_epoch += 1
                     if time_since_best_epoch > self.early_stopping:
                         self.logger.info('Stopping due to early stopping')
-                        self._log_text(f'''
-                        Epoch {epoch}
-                        Stopping due to early stopping
-                        ''')
                         return all_train_metrics, all_val_metrics
 
                 if not self.scheduler_step_after_batch:
@@ -241,9 +229,6 @@ def main():
 
     num_targets = train_data.annotations['category_id'].nunique()
     model.fc = nn.Linear(num_ftrs, num_targets)
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
 
     classifier = Classifier(artifact_path='checkpoints',
                             n_epochs=100, early_stopping=3,
