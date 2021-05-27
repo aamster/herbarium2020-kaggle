@@ -10,7 +10,7 @@ def split_image_metadata(path: str, train_frac):
     indices = list(range(image_metadata.shape[0]))
     np.random.shuffle(indices)
     split = int(np.floor(train_frac * len(indices)))
-    midpoint = int((len(indices) - split) / 2)
+    midpoint = split + int((len(indices) - split) / 2)
     train_idx, valid_idx, test_idx = \
         indices[:split], indices[split:midpoint], indices[midpoint:]
 
@@ -19,3 +19,18 @@ def split_image_metadata(path: str, train_frac):
     test = image_metadata.iloc[test_idx]
 
     return train, valid, test
+
+
+def main():
+    # import json
+    # with open('/Users/adam.amster/herbarium-2020-fgvc7-small'
+    #                      '/nybg2020/train/metadata.json',
+    #           encoding='latin-1') as f:
+    #     metadata = json.loads(f.read())
+    # images = pd.DataFrame(metadata['images'])
+    # images.to_csv('images.csv')
+    split_image_metadata(path='images.csv', train_frac=.7)
+
+
+if __name__ == '__main__':
+    main()

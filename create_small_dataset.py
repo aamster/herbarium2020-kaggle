@@ -58,7 +58,8 @@ def create_dataset_h5py(images, src):
 
 def main():
     with open(
-            '/Users/adam.amster/herbarium-2020-fgvc7/nybg2020/train/metadata'
+            '/Users/adam.amster/herbarium-2020-fgvc7-small/nybg2020/train'
+            '/metadata'
             '.json',
             encoding='latin-1') as f:
         metadata = json.loads(f.read())

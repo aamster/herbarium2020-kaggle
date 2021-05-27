@@ -43,7 +43,11 @@ class CropBorder(object):
 
     @staticmethod
     def _crop(img, contours):
-        idx = np.argmax([cv2.contourArea(c) for c in contours])
+        contour_areas = [cv2.contourArea(c) for c in contours]
+        if not contour_areas:
+            return img
+
+        idx = np.argmax(contour_areas)
         x, y, w, h = cv2.boundingRect(contours[idx])
         return img[y:y + h, x:x + w]
 
@@ -99,14 +103,17 @@ def main(from_ndarray=False):
         if from_ndarray:
             pic = cv2.imread(
                 '/Users/adam.amster/herbarium-2020-fgvc7/nybg2020/train'
-                '/images/000/01/515057.jpg')
+                '/images/000/02/843812.jpg')
             pic = cv2.cvtColor(pic, cv2.COLOR_BGR2RGB)
         else:
             pic = Image.open('/Users/adam.amster/herbarium-2020-fgvc7/nybg2020/train'
-                '/images/000/01/515057.jpg')
+                '/images/000/02/843812.jpg')
 
         composition = [
-            CropBorder()
+            CropBorder(),
+            torchvision.transforms.Resize((448, 314)),
+            # torchvision.transforms.RandomRotation(30),
+
         ]
         # if from_ndarray:
         #     composition.append(torchvision.transforms.ToTensor())
@@ -126,7 +133,6 @@ def main(from_ndarray=False):
         #                                                                238)))
 
 
-        composition.append(torchvision.transforms.Resize((448, 314)))
 
         transforms = torchvision.transforms.Compose(composition)
         pic = transforms(pic)

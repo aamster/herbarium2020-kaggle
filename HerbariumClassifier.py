@@ -76,7 +76,7 @@ class Classifier:
                 self._model.train()
 
                 pb = tqdm(enumerate(train_loader), total=len(train_loader),
-                          desc=f'Epoch {epoch} Train')
+                          desc=f'Epoch {epoch} Train', position=0, leave=True)
                 for batch_idx, sample in pb:
                     data = sample['image']
                     target = sample['label']
@@ -97,7 +97,7 @@ class Classifier:
                                          loss=epoch_train_metrics.loss)
 
                 pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
-                          desc=f'Epoch {epoch} Val')
+                          desc=f'Epoch {epoch} Val', position=0, leave=True)
 
                 self._model.eval()
                 for batch_idx, sample in pb:
