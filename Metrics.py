@@ -26,7 +26,7 @@ class Metrics:
 
         self.y_preds = []
         self.y_trues = []
-        self.y_scores = []
+        self.confusion_matrix = None
         self._f1 = None
     
     @property
@@ -44,42 +44,39 @@ class Metrics:
     @property
     def per_class_stats(self):
         df = pd.DataFrame({'y_true': self.y_trues, 'y_pred': self.y_preds})
-        f1 = df.groupby('y_true')\
-            .apply(lambda x: f1_score(y_true=[x.name] * x.shape[0],
-                                      y_pred=x['y_pred'], pos_label=x.name))
-        precision = df.groupby('y_true')\
-            .apply(lambda x: precision_score(y_true=[x.name] * x.shape[0],
-                                      y_pred=x['y_pred'], pos_label=x.name))
-        recall = df.groupby('y_true')\
-            .apply(lambda x: recall_score(y_true=[x.name] * x.shape[0],
-                                      y_pred=x['y_pred'], pos_label=x.name))
-        n = df.groupby('y_true').size()
-        res = pd.DataFrame({'f1': f1, 'precision': precision, 'recall':
-            recall, 'n': n})
+        tp = df.groupby('y_true').apply(
+            lambda x: (x['y_pred'] == x.name).sum())
+        fn = df.groupby('y_true').apply(
+            lambda x: (x['y_pred'] != x.name).sum())
+        fp = df.groupby('y_pred').apply(
+            lambda x: (x['y_true'] != x.name).sum())
+
+        res = pd.DataFrame({'tp': tp, 'fp': fp, 'fn':
+            fn})
+        res['precision'] = res['tp'] / (res['tp'] + res['fp'])
+        res['recall'] = res['tp'] / (res['tp'] + res['fn'])
+        res['f1'] = 2 * res['precision'] * res['recall'] / (res['precision']
+                                                            + \
+                                                            res['recall'])
+        res['n'] = res['tp'] + res['fn']
+
+        res = res.drop(['tp', 'fp', 'fn'], axis=1)
         return res
 
-    def top_n(self, n=5):
-        scores = torch.vstack(self.y_scores)
-
-        mean_scores = torch.mean(scores, dim=0)
-        top = torch.argsort(mean_scores)[-n:]
-
-        mean_scores = mean_scores[top].cpu().numpy()
-        top = top.cpu().numpy()
-
-        res = pd.DataFrame({'mean_score': mean_scores, 'category': top})
-        res = res.sort_values('mean_score', ascending=False)
-        return res
-
-    def update_outputs(self, y_true, y_out=None, update_scores=False):
+    def update_outputs(self, y_true, y_out=None,
+                       update_confusion_matrix=False):
         y_pred = torch.argmax(y_out, dim=1).cpu().numpy().tolist()
         y_true = y_true.detach().cpu().numpy().tolist()
 
         self.y_preds += y_pred
         self.y_trues += y_true
 
-        if update_scores:
-            self.y_scores.append(y_out)
+        if update_confusion_matrix:
+            if self.confusion_matrix is None:
+                self.confusion_matrix = torch.zeros((y_out.shape[1],
+                                                     y_out.shape[1]))
+
+            self.confusion_matrix[y_true, y_pred] += 1
 
     def update_loss(self, loss, batch_size):
         # convert average loss to sum of loss

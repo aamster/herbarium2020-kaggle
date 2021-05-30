@@ -141,7 +141,7 @@ class Classifier:
         return all_train_metrics, all_val_metrics
 
     def predict(self, valid_loader: DataLoader, epoch=None,
-                return_raw_scores=False):
+                return_confusion_matrix=False):
 
         pb_desc = f'Epoch {epoch} Val' if epoch is not None else 'Val'
         pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
@@ -149,8 +149,6 @@ class Classifier:
 
         n_val = len(valid_loader.dataset)
         epoch_val_metrics = Metrics(N=n_val)
-
-        start_idx = 0
 
         self._model.eval()
         for batch_idx, sample in pb:
@@ -169,7 +167,7 @@ class Classifier:
                                               batch_size=data.shape[0])
                 epoch_val_metrics.update_outputs(y_true=target,
                                                  y_out=output,
-                                                 update_scores=return_raw_scores)
+                                                 update_confusion_matrix=return_confusion_matrix)
 
         return epoch_val_metrics
 
