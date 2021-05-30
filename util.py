@@ -22,13 +22,14 @@ def split_image_metadata(path: str, train_frac):
 
 
 def main():
-    # import json
-    # with open('/Users/adam.amster/herbarium-2020-fgvc7-small'
-    #                      '/nybg2020/train/metadata.json',
-    #           encoding='latin-1') as f:
-    #     metadata = json.loads(f.read())
-    # images = pd.DataFrame(metadata['images'])
-    # images.to_csv('images.csv')
+    import json
+    with open('/Users/adam.amster/herbarium-2020-fgvc7-small'
+                         '/nybg2020/train/metadata.json',
+              encoding='latin-1') as f:
+        metadata = json.loads(f.read())
+    images = pd.DataFrame(metadata['images'])
+    images.to_csv('images.csv')
+    np.random.seed(1234)
     split_image_metadata(path='images.csv', train_frac=.7)
 
 

@@ -68,10 +68,8 @@ class Classifier:
                                    run_id=self._run_id):
             for epoch in range(self._cur_epoch, self.n_epochs):
                 n_train = len(train_loader.dataset)
-                n_val = len(valid_loader.dataset)
 
                 epoch_train_metrics = Metrics(N=n_train)
-                epoch_val_metrics = Metrics(N=n_val)
 
                 self._model.train()
 
@@ -96,27 +94,8 @@ class Classifier:
                 all_train_metrics.update(epoch=epoch,
                                          loss=epoch_train_metrics.loss)
 
-                pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
-                          desc=f'Epoch {epoch} Val', position=0, leave=True)
-
-                self._model.eval()
-                for batch_idx, sample in pb:
-                    data = sample['image']
-                    target = sample['label']
-
-                    # move to GPU
-                    if self.use_cuda:
-                        data, target = data.cuda(), target.cuda()
-
-                    # update the average validation loss
-                    with torch.no_grad():
-                        output = self._model(data)
-                        loss = self._criterion(output, target)
-
-                        epoch_val_metrics.update_loss(loss=loss.item(),
-                                                      batch_size=data.shape[0])
-                        epoch_val_metrics.update_outputs(y_true=target,
-                                                         y_out=output)
+                epoch_val_metrics = self.predict(valid_loader=valid_loader,
+                                                 epoch=epoch)
 
                 all_val_metrics.update(epoch=epoch,
                                        loss=epoch_val_metrics.loss,
@@ -161,6 +140,39 @@ class Classifier:
 
         return all_train_metrics, all_val_metrics
 
+    def predict(self, valid_loader: DataLoader, epoch=None,
+                return_raw_scores=False):
+
+        pb_desc = f'Epoch {epoch} Val' if epoch is not None else 'Val'
+        pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
+                  desc=pb_desc, position=0, leave=True)
+
+        n_val = len(valid_loader.dataset)
+        epoch_val_metrics = Metrics(N=n_val)
+
+        start_idx = 0
+
+        self._model.eval()
+        for batch_idx, sample in pb:
+            data = sample['image']
+            target = sample['label']
+
+            # move to GPU
+            if self.use_cuda:
+                data, target = data.cuda(), target.cuda()
+
+            with torch.no_grad():
+                output = self._model(data)
+                loss = self._criterion(output, target)
+
+                epoch_val_metrics.update_loss(loss=loss.item(),
+                                              batch_size=data.shape[0])
+                epoch_val_metrics.update_outputs(y_true=target,
+                                                 y_out=output,
+                                                 update_scores=return_raw_scores)
+
+        return epoch_val_metrics
+
     def _load_model_from_checkpoint(self):
         model, run_id, val_loss, epoch = \
             mlflow_util.load_model_from_checkpoint(
@@ -172,11 +184,6 @@ class Classifier:
         self._run_id = run_id
         self._best_epoch_val_loss = val_loss
         self._cur_epoch = epoch + 1
-
-    @staticmethod
-    def _log_text(text):
-        now = datetime.datetime.now().strftime('%m-%d-%Y-%I-%M-%S')
-        mlflow.log_text(text, f'train_log/{now}.log')
 
 
 def main():
