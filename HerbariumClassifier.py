@@ -141,8 +141,9 @@ class Classifier:
         return all_train_metrics, all_val_metrics
 
     def predict(self, valid_loader: DataLoader, epoch=None,
-                return_confusion_matrix=False):
-
+                return_confusion_matrix=False,
+                return_last_layer_feature_vectors=False,
+                return_raw_scores=False):
         pb_desc = f'Epoch {epoch} Val' if epoch is not None else 'Val'
         pb = tqdm(enumerate(valid_loader), total=len(valid_loader),
                   desc=pb_desc, position=0, leave=True)
@@ -161,6 +162,11 @@ class Classifier:
 
             with torch.no_grad():
                 output = self._model(data)
+                if return_last_layer_feature_vectors:
+                    yield data.shape[0]
+                if return_raw_scores:
+                    yield output, data.shape[0]
+
                 loss = self._criterion(output, target)
 
                 epoch_val_metrics.update_loss(loss=loss.item(),
@@ -170,6 +176,40 @@ class Classifier:
                                                  update_confusion_matrix=return_confusion_matrix)
 
         return epoch_val_metrics
+
+    def get_last_layer_features(self, valid_loader: DataLoader):
+        global view_output
+
+        def hook_fn(module, input, output):
+            global view_output
+            view_output = output
+
+        hook = self._model.avgpool.register_forward_hook(hook_fn)
+
+        last_layer_outputs = torch.zeros((len(valid_loader.dataset),
+                                          self._model.fc.in_features))
+        start_idx = 0
+        for batch_size in self.predict(valid_loader=valid_loader,
+                                               return_last_layer_feature_vectors=True):
+            output = view_output.reshape(view_output.shape[0], -1)
+            last_layer_outputs[start_idx:start_idx+batch_size] = output
+            start_idx += batch_size
+        hook.remove()
+
+        return last_layer_outputs
+
+    def get_classifier_scores(self, valid_loader):
+        scores = torch.zeros((len(valid_loader.dataset),
+                              self._model.fc.out_features))
+
+        start_idx = 0
+        softmax = torch.nn.Softmax(dim=1)
+        for output, batch_size in self.predict(valid_loader=valid_loader,
+                                               return_raw_scores=True):
+            with torch.no_grad():
+                scores[start_idx:start_idx+batch_size] = softmax(output)
+            start_idx += batch_size
+        return scores
 
     def _load_model_from_checkpoint(self):
         model, run_id, val_loss, epoch = \

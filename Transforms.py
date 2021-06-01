@@ -111,7 +111,7 @@ def main(from_ndarray=False):
 
         composition = [
             CropBorder(),
-            torchvision.transforms.Resize((448, 314)),
+            # torchvision.transforms.Resize((448, 314)),
             # torchvision.transforms.RandomRotation(30),
 
         ]
