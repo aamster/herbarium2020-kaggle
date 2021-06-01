@@ -162,10 +162,10 @@ class Classifier:
 
             with torch.no_grad():
                 output = self._model(data)
-                if return_last_layer_feature_vectors:
-                    yield data.shape[0]
-                if return_raw_scores:
-                    yield output, data.shape[0]
+                # if return_last_layer_feature_vectors:
+                #     yield data.shape[0]
+                # if return_raw_scores:
+                #     yield output, data.shape[0]
 
                 loss = self._criterion(output, target)
 
